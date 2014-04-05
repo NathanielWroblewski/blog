@@ -34,7 +34,7 @@ across of what we're trying to achieve.  Can you think of a solution?
 **Solution**
 
 In ruby, there are objects called procs and lambdas, which are similar to
-javascripts' anonymous functions.  We could store a proc/lambda in the hash like
+javascript's anonymous functions.  We could store a proc/lambda in the hash like
 so:
 
 ```rb
