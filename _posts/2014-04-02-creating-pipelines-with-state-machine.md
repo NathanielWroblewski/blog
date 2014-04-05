@@ -9,11 +9,11 @@ and create callbacks that are triggered during transitions.  It can make Rails
 programming feel a little javascripty, and it can be great for making 'pipelines'.
 
 To illustrate what I mean, imagine having an `Order` model on an e-commerce site.
-Our order model could have states like 'cart', 'complete', and 'cancelled'.  We
+Our order model could have states like `cart`, `complete`, and `cancelled`.  We
 could implement transitions like `#cancel`, which would allow the order to move
-from 'complete' to 'cancelled', but not from 'cart' to 'cancelled' (unless we wanted it
+from `complete` to `cancelled`, but not from `cart` to `cancelled` (unless we wanted it
 to).  We could also set callbacks that could restock inventory of purchased items
-when an order was transitioned from 'complete' to 'cancelled', or anything else for that matter.
+when an order was transitioned from `complete` to `cancelled`, or anything else for that matter.
 
 Let's dive in to state machine and create an email marketing pipeline.
 For this example, we'll assume that we have a `User` model and that our user model
@@ -26,41 +26,41 @@ An Email Marketing Pipeline
 
 In designing our email marketing pipeline, we want the following to occur:
 
-When a user signs up at our site, they enter the pipeline.  After 24 hours, if
+When a user signs up at our site, they enter the pipeline.  After 48 hours, if
 they've made a purchase we'll segment them based on what they've purchased, otherwise
-we'll move them to a 't0_no_action' bucket, where t0 represents an arbitrary time frame they are in.  As for segmenting them, if they
-purchased our subscription service, we'll place them in the 'subscriber' email list,
-otherwise we'll bucket them in the 'VIP' email list.  After another 48 hours, we'll check on our user again.  If they hadn't purchased before, but have in the meantime,
+we'll move them to a `t0_no_action` bucket, where `t0` represents an arbitrary time frame they are in.  As for segmenting them, if they
+purchased our subscription service, we'll place them in the `subscriber` email list,
+otherwise we'll bucket them in the `vip` email list.  After another 48 hours, we'll check on our user again.  If they hadn't purchased before, but have in the meantime,
 we'll rebucket them, again segmented on what they've purchased.  Next, we'll check
 to see if they added something to their cart.  If they did, we'll bucket them in
-the 'added_to_cart' email list.  Otherwise, if they indicated some level of
+the `added_to_cart` email list.  Otherwise, if they indicated some level of
 interest in our subscription service, but didn't complete the sign up, we'll place
-them in the 'interested' email list.  Finally, if they didn't do any of the above, we'll move them to the 't1_no_action' email list.  In our last step, we'll check in on our user again, this time another 48 hours later.  If our user has purchased, we'll segment them based on their purchase just as before.  If they still have something in their cart, they'll be added to the 'still_shoppin' email list.  If they still haven't subscribed, we'll assign them to the 'discounted_subscription' email list.  If they hadn't taken any action before and still haven't, we'll put
-them on an email list called 't2_no_action'.  After that, we'll continually check back in every 48 hours to see if they've purchased, so we can rebucket them and segment them if need be.  I've illustrated the process below where
+them in the `interested` email list.  Finally, if they didn't do any of the above, we'll move them to the `t1_no_action` email list.  In our last step, we'll check in on our user again, this time another 48 hours later.  If our user has purchased, we'll segment them based on their purchase just as before.  If they still have something in their cart, they'll be added to the `still_shoppin` email list.  If they still haven't subscribed, we'll assign them to the `discounted_subscription` email list.  If they hadn't taken any action before and still haven't, we'll put
+them on an email list called `t2_no_action`.  After that, we'll continually check back in every 48 hours to see if they've purchased, so we can rebucket them and segment them if need be.  I've illustrated the process below where
 words preceeded by a colon indicate an email list and words not preceeded by a colon
 indicate an action:
 
 ```rb
-#                      ### Fantasy Marketing Pipeline ###
+#                 ### Fantasy Marketing Pipeline ###
 
-#        :unbucketed                                                 Day 0
+#        :unbucketed                                          Day 0
 #         /         \
-#       *purchase    no-action                                       Day 1
+#       *purchase    no-action                                Day 1
 #       /       \             \
 # :subscriber   :vip       :t0_no_action
 #                         /   |    |     \
-#                 *purchase cart interest no-action                  Day 3
+#                 *purchase cart interest no-action           Day 3
 #                           /      |              \
 #              :added_to_cart  :interested     :t1_no_action
 #              / \              /      \         /    \
-#     *purchase  no-action no-action    *purchase   no-action        Day 5
+#     *purchase  no-action no-action    *purchase  no-action  Day 5
 #                 |            |                        |
 #      :still_shoppin    :discounted_subscription  :t2_no_action
 ```
 
 This rather complex pipeline is easily modeled with state machine.  The first step is
-to tell state machine what field to use on your model.  In this case, our user model
-has an 'email_list' attribute.  We could add this directly to the model, but adding all the
+to tell state machine what field to store state in on your model.  In this case, our user model
+has an `email_list` attribute.  We could add this directly to the model, but adding all the
 email pipeline logic to the user model could really fatten up our user model, which is
 probably fat enough already.  Because everything we're doing is going to relate to
 email marketing, let's pull all the functionality out into a concern.  Now, we'll start with this:
@@ -74,7 +74,8 @@ module EmailMarketable
   extend ActiveSupport::Concern
 
   included do
-    state_machine :email_list, initial: :unbucketed # set a default email list
+     # set a default email list
+    state_machine :email_list, initial: :unbucketed
   end
 end
 ```
@@ -89,7 +90,7 @@ class User < ActiveRecord::Base
 end
 ```
 
-Now, our user will behave as if t\he following were true:
+Now, our user will behave as if the following were true:
 
 ```rb
 class User < ActiveRecord::Base
@@ -97,7 +98,7 @@ class User < ActiveRecord::Base
 end
 ```
 
-The next step, is to tell state machine what states we're going to be using.  In
+The next step is to tell state machine what states we're going to be using.  In
 this case, the states are going to correspond to email lists.  We can set that up
 easily enough:
 
@@ -126,7 +127,7 @@ module EmailMarketable
 end
 ```
 
-At this point, a user can have one of several states: 'unbucketed', 'subscriber', 'vip', 't0_no_action', 't1_no_action', 't2_no_action', 'added_to_cart', 'interested', 'still_shoppin', or 'discounted_subscription'.  But, we have not yet declared a way to transition between states.  Let's add one.
+At this point, a user can have one of several states: `unbucketed`, `subscriber`, `vip`, `t0_no_action`, `t1_no_action`, `t2_no_action`, `added_to_cart`, `interested`, `still_shoppin`, or `discounted_subscription`.  But, we have not yet declared a way to transition between states.  Let's add one.
 
 *app/models/concerns/email_marketable.rb*
 
@@ -149,12 +150,12 @@ module EmailMarketable
             :still_shoppin,
             :discounted_subscription
 
-      event :took_no_action do      # define a transition
-        transition interested:      :discounted_subscription
-        transition added_to_cart:   :still_shoppin
-        transition t1_no_action:    :t2_no_action
-        transition t0_no_action:    :t1_no_action
-        transition unbucketed:      :t0_no_action
+      event :took_no_action do    # define a transition
+        transition interested:    :discounted_subscription
+        transition added_to_cart: :still_shoppin
+        transition t1_no_action:  :t2_no_action
+        transition t0_no_action:  :t1_no_action
+        transition unbucketed:    :t0_no_action
       end
     end
   end
@@ -174,7 +175,7 @@ change state to `t1_no_action` when we call `user.took_no_action`.
 ```
 
 We have a few special cases not covered above, like when a user transitions to
-'added_to_cart' from 't0_no_action', or when a user transitions to 'interested' from 't0_no_action'.  Let's make special cases for each of those.
+`added_to_cart` from `t0_no_action`, or when a user transitions to `interested` from `t0_no_action`.  Let's make special cases for each of those.
 
 *app/models/concerns/email_marketable.rb*
 
@@ -205,11 +206,13 @@ module EmailMarketable
         transition unbucketed:      :t0_no_action
       end
 
-      event :added_item_to_cart do               # handle special cases
+      # handle special cases
+      event :added_item_to_cart do
         transition t0_no_action: :added_to_cart
       end
 
-      event :interested_in_subscribing do        # handle special cases
+      # handle special cases
+      event :interested_in_subscribing do
         transition t0_no_action: :interested
       end
     end
@@ -265,12 +268,13 @@ module EmailMarketable
     end
   end
 
-  def purchased_subscription?      # method to be used in conditional above
-    subscriptions.any?             # assumes a relationship on user model
+  # method to be used in conditional above
+  def purchased_subscription?
+    subscriptions.any? # assumes a relationship on user model
   end
 end
 ```
-That wraps up all of our state and transitions, now let's add a few callbacks.
+That wraps up all of our state and transitions; now, let's add a few callbacks.
 Ideally, we will limit the number of callbacks to limit the complexity of this
 state machine, but a few won't hurt.
 
@@ -316,8 +320,9 @@ module EmailMarketable
         transition all => :vip,    unless: :purchased_subscription?
       end
 
-      before_transition any => any, do: :email_list_unsubscribe # callback
-      after_transition  any => any, do: :email_list_subscribe   # callback
+      # callbacks
+      before_transition any => any, do: :email_list_unsubscribe
+      after_transition  any => any, do: :email_list_subscribe
     end
   end
 
@@ -325,24 +330,26 @@ module EmailMarketable
     subscriptions.any?
   end
 
-  def email_list_subscribe         # callback triggers this method
-    Resque.enqueue(SubscribeUserToList, id, email_list) # starts background job
+   # callback triggers this method
+  def email_list_subscribe
+    Resque.enqueue(SubscribeUserToList, id, email_list)
   end
 
-  def email_list_unsubscribe       # callback triggers this method
-    Resque.enqueue(UnsubscribeUserFromList, id, email_list) # starts bg job
+  # callback triggers this method
+  def email_list_unsubscribe
+    Resque.enqueue(UnsubscribeUserFromList, id, email_list)
   end
 end
 ```
 
 Here, we're not too concerned with what our callbacks are doing, so I obscure
 the functionality by putting them in a background job, which would presumably
-make some API call to some third-party service.  Whatever it does, it's not important.  What is important is understanding that the `email_list_unsubscribe` call back
+make some API call to some third-party service.  Whatever it does, it's not important.  What is important is understanding that the `email_list_unsubscribe` callback
 will fire before any transition from any one state to any another.  Same with the
 `email_list_subscribe` callback.  We could also specify a callback to be called when
 we transition between a specific state to any other specific state as well, but this suffices for this example.
 
-Our state machine is ready to go, let's whip up a quick rake task to demonstrate
+Our state machine is ready to go!  Let's whip up a quick rake task to demonstrate
 how transitions could be called on our user object.
 
 *lib/tasks/assign_email_list.rake*
@@ -366,8 +373,10 @@ task assign_email_list: :environment do
 end
 ```
 
-This scheduled task simply runs every day or so, pulls users that haven't reached
+This scheduled task simply runs every other day, pulls users that haven't reached
 the highest priority email list (users that could be rebucketed into another list), checks which action the user should receive base on our criteria, and simply calls the state machine transition on the user, letting state machine handle all the rest.
 
 The more I work with the state machine pattern, the more I enjoy it.  I find that
 it can greatly simplify my backend rails code and that it is excellent for creating pipelines.  The next time you need to create some sort of pipeline, give state machine a shot, and let me know what you think of it.
+
+Cheers
